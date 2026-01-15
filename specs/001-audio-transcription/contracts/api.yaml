@@ -1,0 +1,487 @@
+openapi: 3.0.3
+info:
+  title: Transcriptor API
+  description: Audio transcription service with speaker diarization for Brazilian Portuguese
+  version: 1.0.0
+  contact:
+    name: Transcriptor
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: transcription
+    description: Audio transcription operations
+  - name: history
+    description: Transcription history and retrieval
+
+paths:
+  /api/transcribe:
+    post:
+      tags:
+        - transcription
+      summary: Upload and transcribe audio file
+      description: |
+        Upload an audio file for transcription with speaker diarization.
+        The file is processed asynchronously and a transcription ID is returned immediately.
+      operationId: uploadAudio
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Audio file (MP3, WAV, M4A, OGG, or FLAC)
+              required:
+                - file
+      responses:
+        '202':
+          description: File accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptionCreated'
+        '400':
+          description: Invalid file (wrong format, too large, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_format:
+                  value:
+                    error_code: "invalid_file_format"
+                    message: "File format not supported. Please upload MP3, WAV, M4A, OGG, or FLAC files."
+                file_too_large:
+                  value:
+                    error_code: "file_too_large"
+                    message: "File exceeds 250MB limit. Please compress or trim your audio file."
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/transcribe/{id}:
+    get:
+      tags:
+        - transcription
+      summary: Get transcription by ID
+      description: Retrieve a transcription with all segments and current status
+      operationId: getTranscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Transcription UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transcription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptionDetail'
+        '404':
+          description: Transcription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/transcribe/{id}/status:
+    get:
+      tags:
+        - transcription
+      summary: Get transcription status
+      description: Check the processing status of a transcription (for polling)
+      operationId: getTranscriptionStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Transcription UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptionStatus'
+        '404':
+          description: Transcription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/transcribe/{id}/speakers:
+    patch:
+      tags:
+        - transcription
+      summary: Update speaker name
+      description: Edit a speaker's custom name across all segments in a transcription
+      operationId: updateSpeakerName
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Transcription UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpeakerUpdate'
+      responses:
+        '200':
+          description: Speaker name updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  updated_segments:
+                    type: integer
+                    description: Number of segments updated
+                    example: 42
+        '400':
+          description: Invalid speaker name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Transcription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/transcribe/{id}/download:
+    get:
+      tags:
+        - transcription
+      summary: Download transcription
+      description: Download transcription in specified format (TXT, JSON, or SRT)
+      operationId: downloadTranscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Transcription UUID
+          schema:
+            type: string
+            format: uuid
+        - name: format
+          in: query
+          required: false
+          description: Download format
+          schema:
+            type: string
+            enum: [txt, json, srt]
+            default: txt
+      responses:
+        '200':
+          description: Transcription file
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  Speaker 1: Hello, how are you?
+                  Speaker 2: I'm doing well, thanks!
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptionDetail'
+            application/x-subrip:
+              schema:
+                type: string
+                example: |
+                  1
+                  00:00:00,000 --> 00:00:03,500
+                  Speaker 1: Hello, how are you?
+        '404':
+          description: Transcription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/history:
+    get:
+      tags:
+        - history
+      summary: List transcription history
+      description: Get a list of all transcriptions, sorted by creation date (newest first)
+      operationId: getHistory
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of results
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          description: Pagination offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of transcriptions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptionList'
+
+  /api/health:
+    get:
+      tags:
+        - health
+      summary: Health check
+      description: Check if the API is running and models are loaded
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  whisper_model_loaded:
+                    type: boolean
+                    example: true
+                  diarization_available:
+                    type: boolean
+                    example: true
+
+components:
+  schemas:
+    TranscriptionCreated:
+      type: object
+      required:
+        - id
+        - status
+        - filename
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique transcription identifier
+        status:
+          type: string
+          enum: [pending, processing]
+          description: Initial processing status
+        filename:
+          type: string
+          description: Uploaded filename
+
+    TranscriptionStatus:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        error_message:
+          type: string
+          nullable: true
+          description: Error description if status is failed
+
+    TranscriptionDetail:
+      type: object
+      required:
+        - id
+        - filename
+        - file_size
+        - upload_timestamp
+        - status
+        - created_at
+        - updated_at
+        - segments
+        - speakers
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        file_size:
+          type: integer
+          description: File size in bytes
+        upload_timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Segment'
+        speakers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Speaker'
+          description: Distinct speakers in the transcription
+
+    Segment:
+      type: object
+      required:
+        - id
+        - speaker
+        - text
+        - start_time
+        - end_time
+        - is_custom_name
+      properties:
+        id:
+          type: integer
+        speaker:
+          type: string
+          description: Display name (custom name if set, otherwise system label)
+        text:
+          type: string
+          description: Transcribed text for this segment
+        start_time:
+          type: number
+          format: float
+          description: Start time in seconds
+        end_time:
+          type: number
+          format: float
+          description: End time in seconds
+        is_custom_name:
+          type: boolean
+          description: Whether speaker name has been customized by user
+
+    Speaker:
+      type: object
+      required:
+        - speaker_label
+        - segment_count
+      properties:
+        speaker_label:
+          type: string
+          description: System-assigned speaker ID (e.g., "SPEAKER_00")
+        custom_speaker_name:
+          type: string
+          nullable: true
+          description: User-assigned custom name
+        segment_count:
+          type: integer
+          description: Number of segments attributed to this speaker
+
+    SpeakerUpdate:
+      type: object
+      required:
+        - speaker_label
+      properties:
+        speaker_label:
+          type: string
+          pattern: '^SPEAKER_\d{2}$'
+          description: System speaker label to update
+        custom_speaker_name:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 100
+          description: New custom name (null to reset to default)
+
+    TranscriptionList:
+      type: object
+      required:
+        - total
+        - items
+      properties:
+        total:
+          type: integer
+          description: Total number of transcriptions
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TranscriptionSummary'
+
+    TranscriptionSummary:
+      type: object
+      required:
+        - id
+        - filename
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        created_at:
+          type: string
+          format: date-time
+        speaker_count:
+          type: integer
+          description: Number of distinct speakers (only for completed)
+          nullable: true
+
+    Error:
+      type: object
+      required:
+        - error_code
+        - message
+      properties:
+        error_code:
+          type: string
+          description: Machine-readable error code
+          example: "invalid_file_format"
+        message:
+          type: string
+          description: User-friendly error message
+          example: "File format not supported. Please upload MP3, WAV, M4A, OGG, or FLAC files."
+        details:
+          type: string
+          description: Technical details for debugging (optional)
+          nullable: true

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcriptor</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Transcriptor</h1>
+            <nav>
+                <button id="btn-upload" class="nav-btn active">Upload</button>
+                <button id="btn-history" class="nav-btn">History</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Upload View -->
+        <section id="view-upload" class="view">
+            <h2>Upload Audio for Transcription</h2>
+
+            <div id="dropzone" class="dropzone">
+                <input type="file" id="file-input" accept="audio/*" hidden>
+                <div class="dropzone-content">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <p>Drag and drop an audio file here, or click to select</p>
+                    <p class="hint">Supported: MP3, WAV, M4A, FLAC, OGG (max 500MB)</p>
+                </div>
+            </div>
+
+            <!-- Progress Section -->
+            <div id="progress-section" class="progress-section hidden">
+                <div class="progress-header">
+                    <span id="progress-filename" class="filename"></span>
+                    <span id="progress-status" class="status"></span>
+                </div>
+
+                <div class="progress-bar-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+
+                <!-- Stage Indicator -->
+                <div id="stage-indicator" class="stage-indicator hidden">
+                    <div class="stages">
+                        <div class="stage" data-stage="loading_audio">
+                            <div class="stage-dot"></div>
+                            <div class="stage-line"></div>
+                        </div>
+                        <div class="stage" data-stage="transcribing">
+                            <div class="stage-dot"></div>
+                            <div class="stage-line"></div>
+                        </div>
+                        <div class="stage" data-stage="diarizing">
+                            <div class="stage-dot"></div>
+                            <div class="stage-line"></div>
+                        </div>
+                        <div class="stage" data-stage="saving">
+                            <div class="stage-dot"></div>
+                        </div>
+                    </div>
+                    <p id="stage-description" class="stage-description"></p>
+                </div>
+
+                <!-- Logs Panel -->
+                <div id="logs-panel" class="logs-panel hidden">
+                    <button id="logs-toggle" class="logs-toggle">
+                        <span class="toggle-icon">&#9654;</span>
+                        Processing Logs (<span id="logs-count">0</span>)
+                    </button>
+                    <div id="logs-content" class="logs-content hidden"></div>
+                </div>
+
+                <p id="progress-error" class="error hidden"></p>
+
+                <!-- Actions after completion -->
+                <div id="progress-actions" class="progress-actions hidden">
+                    <button id="btn-view-result" class="btn btn-secondary">View Transcription</button>
+                    <button id="btn-download-result" class="btn btn-primary">Download MD</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transcription View -->
+        <section id="view-transcription" class="view hidden">
+            <div class="transcription-header">
+                <button id="btn-back" class="btn-back">&larr; Back</button>
+                <h2 id="transcription-filename"></h2>
+                <button id="btn-download" class="btn btn-primary">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download MD
+                </button>
+            </div>
+            <p class="hint">Click on a speaker name to edit it</p>
+            <div id="transcription-content" class="transcription-content"></div>
+        </section>
+
+        <!-- History View -->
+        <section id="view-history" class="view hidden">
+            <h2>Transcription History</h2>
+            <div id="history-list" class="history-list"></div>
+        </section>
+    </main>
+
+    <!-- Speaker Edit Modal -->
+    <div id="speaker-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Edit Speaker Name</h3>
+            <p id="modal-speaker-label"></p>
+            <input type="text" id="modal-speaker-input" placeholder="Enter custom name">
+            <div class="modal-actions">
+                <button id="modal-cancel" class="btn btn-secondary">Cancel</button>
+                <button id="modal-save" class="btn btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
