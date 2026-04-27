@@ -5,8 +5,10 @@ import { TranscriptionView } from '@/components/transcription/TranscriptionView'
 import { SpeakerEditor } from '@/components/transcription/SpeakerEditor'
 import { DownloadButton } from '@/components/transcription/DownloadButton'
 import { HistoryList } from '@/components/history/HistoryList'
+import { ApiKeyGate } from '@/components/auth/ApiKeyGate'
 import { useUpload } from '@/hooks/useUpload'
 import { useTranscriptionStatus, useTranscription, useUpdateSpeaker } from '@/hooks/useTranscription'
+import { clearApiKey } from '@/services/auth'
 // import { useProgressStream } from '@/hooks/useProgressStream'
 // import { ProcessingStage } from '@/services/transcription'
 import { ArrowLeft } from 'lucide-react'
@@ -82,28 +84,36 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <nav className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Transcriptor</h1>
-            <div className="flex gap-4">
-              <button
-                onClick={handleBackToUpload}
-                className={`px-4 py-2 rounded-md ${view === 'upload' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-              >
-                Upload
-              </button>
-              <button
-                onClick={() => setView('history')}
-                className={`px-4 py-2 rounded-md ${view === 'history' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-              >
-                History
-              </button>
-            </div>
-          </nav>
-        </div>
-      </header>
+    <ApiKeyGate>
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4">
+            <nav className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold">Transcriptor</h1>
+              <div className="flex gap-4">
+                <button
+                  onClick={handleBackToUpload}
+                  className={`px-4 py-2 rounded-md ${view === 'upload' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                >
+                  Upload
+                </button>
+                <button
+                  onClick={() => setView('history')}
+                  className={`px-4 py-2 rounded-md ${view === 'history' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                >
+                  History
+                </button>
+                <button
+                  onClick={() => clearApiKey()}
+                  className="px-4 py-2 rounded-md hover:bg-muted text-sm text-muted-foreground"
+                  title="Trocar API key"
+                >
+                  Sair
+                </button>
+              </div>
+            </nav>
+          </div>
+        </header>
 
       <main className="container mx-auto px-4 py-8">
         {view === 'upload' && (
@@ -188,16 +198,17 @@ function App() {
         )}
       </main>
 
-      {editingSpeaker && currentTranscriptionId && (
-        <SpeakerEditor
-          speakerLabel={editingSpeaker.label}
-          currentName={editingSpeaker.currentName}
-          onSave={handleSpeakerSave}
-          onCancel={() => setEditingSpeaker(null)}
-          isLoading={updateSpeaker.isPending}
-        />
-      )}
-    </div>
+        {editingSpeaker && currentTranscriptionId && (
+          <SpeakerEditor
+            speakerLabel={editingSpeaker.label}
+            currentName={editingSpeaker.currentName}
+            onSave={handleSpeakerSave}
+            onCancel={() => setEditingSpeaker(null)}
+            isLoading={updateSpeaker.isPending}
+          />
+        )}
+      </div>
+    </ApiKeyGate>
   )
 }
 
