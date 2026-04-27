@@ -77,12 +77,25 @@ async def health_check():
     }
 
 
-# Serve static files
+# Serve the built React frontend.
 static_dir = Path(__file__).parent.parent.parent / "static"
 if static_dir.exists():
+    assets_dir = static_dir / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    # Mount the rest of /static for ad-hoc files (favicon, etc.).
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-    @app.get("/")
+    @app.get("/", include_in_schema=False)
     async def serve_index():
-        """Serve the frontend index.html."""
+        return FileResponse(str(static_dir / "index.html"))
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        # API routes are registered above and take precedence. Anything else
+        # that doesn't map to a file falls back to the SPA's index.html.
+        candidate = static_dir / full_path
+        if candidate.is_file():
+            return FileResponse(str(candidate))
         return FileResponse(str(static_dir / "index.html"))
