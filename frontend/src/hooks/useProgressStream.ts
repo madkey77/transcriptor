@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { getApiKey } from '@/services/auth'
 
 export interface LogEntry {
   timestamp: string
@@ -45,7 +46,11 @@ export function useProgressStream(transcriptionId: string | null) {
       eventSourceRef.current.close()
     }
 
-    const eventSource = new EventSource(`/api/transcribe/${transcriptionId}/progress`)
+    const apiKey = getApiKey()
+    const url = apiKey
+      ? `/api/transcribe/${transcriptionId}/progress?api_key=${encodeURIComponent(apiKey)}`
+      : `/api/transcribe/${transcriptionId}/progress`
+    const eventSource = new EventSource(url)
     eventSourceRef.current = eventSource
 
     eventSource.onopen = () => {
