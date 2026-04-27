@@ -16,6 +16,10 @@ def make_app(api_key: str | None) -> TestClient:
     def progress():
         return {"streaming": True}
 
+    @app.get("/api/transcribe/abc/download")
+    def download():
+        return {"file": True}
+
     @app.get("/")
     def index():
         return {"page": "index"}
@@ -68,6 +72,18 @@ def test_non_api_paths_skip_auth_when_key_configured():
     client = make_app(api_key="secret123")
     assert client.get("/").status_code == 200
     assert client.get("/static/app.js").status_code == 200
+
+
+def test_download_endpoint_accepts_query_param():
+    client = make_app(api_key="secret123")
+    r = client.get("/api/transcribe/abc/download?api_key=secret123")
+    assert r.status_code == 200
+
+
+def test_download_endpoint_rejects_wrong_query_param():
+    client = make_app(api_key="secret123")
+    r = client.get("/api/transcribe/abc/download?api_key=wrong")
+    assert r.status_code == 401
 
 
 def test_get_configured_api_key_reads_env(monkeypatch):

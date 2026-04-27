@@ -1,10 +1,10 @@
 """API key authentication middleware.
 
 When TRANSCRIPTOR_API_KEY is set, every request to /api/* must provide the
-key in the X-API-Key header. The /api/transcribe/{id}/progress endpoint also
-accepts an `api_key` query parameter, because EventSource cannot send custom
-headers. Non-/api paths (the SPA at / and assets under /static) are never
-challenged.
+key in the X-API-Key header. Endpoints that browsers reach without custom
+headers (SSE progress streams, direct download links) also accept the key
+via an `api_key` query parameter. Non-/api paths (the SPA at / and assets
+under /static) are never challenged.
 """
 
 import os
@@ -15,12 +15,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 
+_QUERY_PARAM_PATHS = ("/progress", "/download")
+
+
 def _extract_provided_key(request: Request) -> Optional[str]:
     header_key = request.headers.get("X-API-Key")
     if header_key:
         return header_key
-    # Fallback for SSE / EventSource which cannot set custom headers.
-    if request.url.path.endswith("/progress"):
+    if request.url.path.endswith(_QUERY_PARAM_PATHS):
         return request.query_params.get("api_key")
     return None
 
