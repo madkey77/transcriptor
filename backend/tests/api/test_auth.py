@@ -68,3 +68,35 @@ def test_non_api_paths_skip_auth_when_key_configured():
     client = make_app(api_key="secret123")
     assert client.get("/").status_code == 200
     assert client.get("/static/app.js").status_code == 200
+
+
+def test_get_configured_api_key_reads_env(monkeypatch):
+    from src.api.auth import get_configured_api_key
+
+    monkeypatch.delenv("TRANSCRIPTOR_API_KEY", raising=False)
+    assert get_configured_api_key() is None
+
+    monkeypatch.setenv("TRANSCRIPTOR_API_KEY", "  ")
+    assert get_configured_api_key() is None
+
+    monkeypatch.setenv("TRANSCRIPTOR_API_KEY", "real-key")
+    assert get_configured_api_key() == "real-key"
+
+
+def test_setup_middleware_installs_auth_with_configured_key(monkeypatch):
+    """setup_middleware should pull the key from env and challenge requests."""
+    monkeypatch.setenv("TRANSCRIPTOR_API_KEY", "live-secret")
+
+    from fastapi import FastAPI
+    from src.api.middleware import setup_middleware
+
+    app = FastAPI()
+    setup_middleware(app)
+
+    @app.get("/api/ping")
+    def ping():
+        return {"ok": True}
+
+    client = TestClient(app)
+    assert client.get("/api/ping").status_code == 401
+    assert client.get("/api/ping", headers={"X-API-Key": "live-secret"}).status_code == 200

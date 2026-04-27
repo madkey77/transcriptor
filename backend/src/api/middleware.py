@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.utils.validation import FileValidationError
+from src.api.auth import get_configured_api_key, install_api_key_auth
 
 
 class TranscriptionError(Exception):
@@ -18,11 +19,15 @@ class TranscriptionError(Exception):
 
 def setup_middleware(app: FastAPI) -> None:
     """Configure all middleware for the application."""
+    # Install API key auth FIRST so it wraps everything below it. FastAPI runs
+    # the most-recently-added middleware outermost, so we add CORS afterwards.
+    install_api_key_auth(app, api_key=get_configured_api_key())
 
-    # CORS configuration
+    # CORS: only the Vite dev server origin needs cross-origin access. In prod
+    # the SPA is served from the same origin (port 8000) so CORS is unused.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://localhost:8000", "http://127.0.0.1:8000"],
+        allow_origins=["http://localhost:5173"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
