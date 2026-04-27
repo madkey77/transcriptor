@@ -84,6 +84,53 @@ cd backend
 pytest tests/
 ```
 
+## Exposing the service via ngrok (personal access)
+
+The service is designed to run on your own machine and be reached from anywhere through an ngrok tunnel. Access is gated by an application-level API key, so even if the ngrok URL is discovered nobody can use the service without the key.
+
+### One-time setup
+
+1. Generate a long random API key:
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
+2. Save it in `backend/.env`:
+   ```dotenv
+   TRANSCRIPTOR_API_KEY=<paste-the-key-here>
+   HF_TOKEN=<your-huggingface-token>
+   ```
+3. Build the frontend (any time the React code changes):
+   ```bash
+   cd frontend && npm install && npm run build
+   ```
+4. Install the ngrok agent and authenticate with your account:
+   ```bash
+   ngrok config add-authtoken <your-ngrok-authtoken>
+   ```
+
+### Daily run
+
+Two terminals:
+
+```bash
+# Terminal 1 — the app
+cd backend
+./start.sh
+```
+
+```bash
+# Terminal 2 — the tunnel
+ngrok http 8000
+```
+
+ngrok prints a public HTTPS URL such as `https://xyz-123.ngrok-free.app`. Open it in any browser, paste the API key into the gate, and use the service. On the free plan the URL changes every time you restart ngrok — the key stays the same, so just re-open the new URL and reuse the saved key (it lives in `localStorage`, so the same browser keeps it).
+
+### Security notes
+
+- The API key is checked with a constant-time comparison on every `/api/*` request.
+- Browsers can't attach custom headers to `EventSource` or download navigations, so the middleware also accepts `?api_key=` for `/progress` and `/download` endpoints. Treat the URL as sensitive — for example, don't paste it into a public chat.
+- Rotate the key by updating `backend/.env` and restarting the backend; existing browser tabs will be challenged again on the next request.
+
 ## License
 
 MIT
