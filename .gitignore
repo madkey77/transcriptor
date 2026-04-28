@@ -63,3 +63,6 @@ data/
 
 # Test audio files
 test_audio/
+
+# Runtime logs from run.sh
+.runtime/
