@@ -17,8 +17,15 @@ class Settings(BaseSettings):
     whisper_model: str = "medium"
     whisper_language: str = "pt"
 
+    # Compute device (fail-fast if cuda unavailable)
+    device: str = "cuda"
+    compute_type: str = "float16"
+
+    # Transcription queue
+    queue_max_size: int = 100
+
     # File upload limits
-    max_file_size_mb: int = 250
+    max_file_size_mb: int = 1024
 
     # Allowed audio formats
     allowed_audio_formats: set[str] = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
