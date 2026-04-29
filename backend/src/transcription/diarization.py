@@ -17,7 +17,7 @@ class DiarizationService:
 
     def __init__(self):
         self.settings = get_settings()
-        self.device = "cpu"
+        self.device = self.settings.device
 
     def load_pipeline(self) -> bool:
         """Load diarization pipeline. Returns True if successful."""
