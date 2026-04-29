@@ -48,7 +48,8 @@ curl -s -o /dev/null http://127.0.0.1:8000/ || {
 echo "  ✓ backend pronto em http://127.0.0.1:8000"
 
 echo "▶ Abrindo túnel ngrok (logs → $NGROK_LOG)…"
-ngrok http 8000 --log=stdout >"$NGROK_LOG" 2>&1 &
+NGROK_DOMAIN="${NGROK_DOMAIN:-egret-awake-vaguely.ngrok-free.app}"
+ngrok http --domain="$NGROK_DOMAIN" 8000 --log=stdout >"$NGROK_LOG" 2>&1 &
 NGROK_PID=$!
 
 # ngrok exposes its local API on :4040 once ready
