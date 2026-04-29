@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
@@ -9,8 +9,8 @@ import re
 
 from src.storage.database import get_db
 from src.storage.repository import TranscriptionRepository
+from src.storage.models import TranscriptionStatus
 from src.utils.validation import validate_audio_file, FileValidationError
-from src.transcription.processor import process_transcription_async
 from src.transcription.progress import get_progress_manager
 
 router = APIRouter(prefix="/api/transcribe", tags=["transcription"])
@@ -22,6 +22,7 @@ class TranscriptionCreatedResponse(BaseModel):
     id: str
     status: str
     filename: str
+    position: int
 
 
 class TranscriptionStatusResponse(BaseModel):
@@ -88,33 +89,40 @@ class SpeakerUpdateResponse(BaseModel):
 
 @router.post("", response_model=TranscriptionCreatedResponse, status_code=202)
 async def upload_audio(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
     """
     Upload an audio file for transcription with speaker diarization.
 
-    The file is processed asynchronously and a transcription ID is returned immediately.
+    The file is enqueued and processed serially.
     """
-    # Read file content
+    from src.transcription.queue import get_queue, QueueFullError
+
     content = await file.read()
     file_size = len(content)
-
-    # Validate file
     validate_audio_file(file.filename, file_size, content)
 
-    # Create transcription record
     repo = TranscriptionRepository(db)
     transcription = repo.create_transcription(file.filename, file_size)
 
-    # Add background task for processing
-    background_tasks.add_task(process_transcription_async, content, transcription.id)
+    queue = get_queue()
+    try:
+        position = queue.enqueue(transcription.id, content)
+    except QueueFullError:
+        # Roll back the DB row so it doesn't sit as a stale pending.
+        repo.update_status(
+            transcription.id,
+            TranscriptionStatus.FAILED,
+            error_message="Queue full"
+        )
+        raise HTTPException(status_code=429, detail="Queue full")
 
     return TranscriptionCreatedResponse(
         id=transcription.id,
         status=transcription.status.value,
-        filename=transcription.filename
+        filename=transcription.filename,
+        position=position,
     )
 
 
@@ -293,3 +301,31 @@ async def download_transcription(
             "Content-Disposition": f'attachment; filename="{safe_filename}.md"'
         }
     )
+
+
+@router.delete("/{transcription_id}", status_code=204)
+async def cancel_transcription(
+    transcription_id: str,
+    db: Session = Depends(get_db)
+):
+    """Cancel a pending transcription. 409 if already processing/finished."""
+    from src.transcription.queue import get_queue
+
+    repo = TranscriptionRepository(db)
+    status = repo.get_transcription_status(transcription_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if status["status"] != "pending":
+        raise HTTPException(status_code=409, detail="Job is not cancellable")
+
+    # Best-effort removal from queue (job may have been picked up already).
+    queue = get_queue()
+    queue.cancel(transcription_id)
+
+    repo.update_status(
+        transcription_id,
+        TranscriptionStatus.FAILED,
+        error_message="Cancelled by user"
+    )
+    return Response(status_code=204)
