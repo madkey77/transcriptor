@@ -3,6 +3,8 @@ import logging
 from typing import Optional
 from pathlib import Path
 
+import torch
+
 from src.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -18,8 +20,8 @@ class WhisperXService:
 
     def __init__(self):
         self.settings = get_settings()
-        self.device = "cpu"  # CPU mode for personal use
-        self.compute_type = "int8"  # Optimized for CPU
+        self.device = self.settings.device
+        self.compute_type = self.settings.compute_type
 
     def load_model(self) -> bool:
         """Load WhisperX model into memory. Returns True if successful."""
@@ -28,10 +30,19 @@ class WhisperXService:
         if _whisper_model is not None:
             return True
 
+        if self.device == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError(
+                "CUDA não disponível. Instale driver NVIDIA + PyTorch CUDA, "
+                "ou ajuste TRANSCRIPTOR_DEVICE no .env."
+            )
+
         try:
             import whisperx
 
-            logger.info(f"Loading WhisperX model: {self.settings.whisper_model}")
+            logger.info(
+                f"Loading WhisperX model: {self.settings.whisper_model} "
+                f"on {self.device} ({self.compute_type})"
+            )
             _whisper_model = whisperx.load_model(
                 self.settings.whisper_model,
                 device=self.device,
@@ -39,7 +50,6 @@ class WhisperXService:
                 language=self.settings.whisper_language
             )
 
-            # Load alignment model for Portuguese
             logger.info("Loading alignment model for Portuguese")
             _align_model, _align_metadata = whisperx.load_align_model(
                 language_code=self.settings.whisper_language,
@@ -51,7 +61,7 @@ class WhisperXService:
 
         except Exception as e:
             logger.error(f"Failed to load WhisperX model: {e}")
-            return False
+            raise
 
     def is_loaded(self) -> bool:
         """Check if model is loaded."""
