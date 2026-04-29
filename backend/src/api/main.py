@@ -28,7 +28,6 @@ async def lifespan(app: FastAPI):
 
     # Mark any orphan jobs (left as pending/processing from a previous run) as failed.
     from src.storage.database import get_db_context
-    from src.storage.repository import TranscriptionRepository
     from src.storage.models import Transcription, TranscriptionStatus
     with get_db_context() as db:
         orphans = (
