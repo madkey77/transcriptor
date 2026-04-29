@@ -71,7 +71,10 @@ class AudioProcessor:
                 self.progress.update_stage(transcription_id, "transcribing", "Transcribing audio with WhisperX...")
                 repo.update_stage(transcription_id, ProcessingStage.TRANSCRIBING)
 
-                result = self.whisperx.transcribe(temp_path)
+                def _on_progress(pct: float, _id=transcription_id):
+                    self.progress.update_progress(_id, "transcribing", pct)
+
+                result = self.whisperx.transcribe(temp_path, on_progress=_on_progress)
 
                 # Stage: Diarizing
                 if self.diarization.is_available():
