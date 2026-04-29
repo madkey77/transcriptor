@@ -13,6 +13,7 @@ class EventType(str, Enum):
     """Types of progress events."""
     STAGE = "stage"
     LOG = "log"
+    PROGRESS = "progress"
     COMPLETE = "complete"
     ERROR = "error"
 
@@ -91,6 +92,17 @@ class ProgressManager:
             transcription_id=transcription_id,
             timestamp=datetime.utcnow().isoformat(),
             data={"stage": stage, "description": description}
+        )
+        self._put_event(transcription_id, event)
+
+    def update_progress(self, transcription_id: str, stage: str, pct: float):
+        """Update fractional progress (0..1) within a stage."""
+        clamped = max(0.0, min(1.0, float(pct)))
+        event = ProgressEvent(
+            event_type=EventType.PROGRESS,
+            transcription_id=transcription_id,
+            timestamp=datetime.utcnow().isoformat(),
+            data={"stage": stage, "pct": clamped}
         )
         self._put_event(transcription_id, event)
 
