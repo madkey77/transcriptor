@@ -319,9 +319,13 @@ async def cancel_transcription(
     if status["status"] != "pending":
         raise HTTPException(status_code=409, detail="Job is not cancellable")
 
-    # Best-effort removal from queue (job may have been picked up already).
     queue = get_queue()
-    queue.cancel(transcription_id)
+    if queue.is_active(transcription_id):
+        raise HTTPException(status_code=409, detail="Job is active")
+    if not queue.cancel(transcription_id):
+        # Job already left the pending list — worker picked it up between the
+        # DB read and here. Don't mark FAILED; the running job will finish.
+        raise HTTPException(status_code=409, detail="Job is no longer cancellable")
 
     repo.update_status(
         transcription_id,

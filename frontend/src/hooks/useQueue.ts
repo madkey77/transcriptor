@@ -8,10 +8,11 @@ export interface QueueLocalItem {
   localId: string
   filename: string
   size: number
+  // Original File kept so retry can re-upload without prompting again.
+  file: File
   // Becomes set once POST succeeds.
   transcriptionId?: string
   status: 'uploading' | 'queued' | 'failed'
-  position?: number
   error?: string
 }
 
@@ -26,7 +27,7 @@ export function useQueue() {
     const localId = nextLocalId()
     setItems((prev) => [
       ...prev,
-      { localId, filename: file.name, size: file.size, status: 'uploading' },
+      { localId, filename: file.name, size: file.size, file, status: 'uploading' },
     ])
 
     try {
@@ -37,7 +38,6 @@ export function useQueue() {
             ? {
                 ...it,
                 transcriptionId: created.id,
-                position: created.position,
                 status: 'queued',
               }
             : it
@@ -84,11 +84,14 @@ export function useQueue() {
   )
 
   const retry = useCallback(
-    async (localId: string, file: File) => {
+    async (localId: string) => {
+      const it = items.find((i) => i.localId === localId)
+      if (!it) return
+      const file = it.file
       setItems((prev) => prev.filter((i) => i.localId !== localId))
       await upload(file)
     },
-    [upload]
+    [items, upload]
   )
 
   const clear = useCallback(() => setItems([]), [])

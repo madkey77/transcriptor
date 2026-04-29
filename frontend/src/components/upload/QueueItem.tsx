@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCircle2, AlertCircle, Loader2, X, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Loader2, X, ExternalLink, RotateCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { useTranscriptionStatus } from '@/hooks/useTranscription'
 import { useProgressStream } from '@/hooks/useProgressStream'
 import { STAGE_LABELS, ProcessingStage } from '@/services/transcription'
@@ -8,8 +8,13 @@ import type { QueueLocalItem } from '@/hooks/useQueue'
 
 interface QueueItemProps {
   item: QueueLocalItem
+  // 0-based index of this item among other queued/uploading siblings.
+  // Used to render "Aguardando (N à frente)" without trusting the stale
+  // server-side position from the moment of upload.
+  relativePosition: number
   onOpen: (id: string) => void
   onRemove: (localId: string) => void
+  onRetry: (localId: string) => void
 }
 
 function formatBytes(bytes: number): string {
@@ -17,7 +22,7 @@ function formatBytes(bytes: number): string {
   return mb < 1 ? `${(bytes / 1024).toFixed(0)} KB` : `${mb.toFixed(1)} MB`
 }
 
-export function QueueItem({ item, onOpen, onRemove }: QueueItemProps) {
+export function QueueItem({ item, relativePosition, onOpen, onRemove, onRetry }: QueueItemProps) {
   const [showLogs, setShowLogs] = useState(false)
   const status = useTranscriptionStatus(item.transcriptionId ?? null)
   const stream = useProgressStream(
@@ -48,7 +53,7 @@ export function QueueItem({ item, onOpen, onRemove }: QueueItemProps) {
     badgeText = 'Processando'
     badgeClass = 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
   } else {
-    badgeText = item.position && item.position > 0 ? `Aguardando (${item.position} à frente)` : 'Iniciando…'
+    badgeText = relativePosition > 0 ? `Aguardando (${relativePosition} à frente)` : 'Iniciando…'
     badgeClass = 'bg-slate-500/15 text-slate-700 dark:text-slate-300'
   }
 
@@ -121,13 +126,23 @@ export function QueueItem({ item, onOpen, onRemove }: QueueItemProps) {
             </button>
           )}
           {(serverStatus === 'failed' || item.status === 'failed') && (
-            <button
-              onClick={() => onRemove(item.localId)}
-              aria-label="Limpar"
-              className="p-2 rounded-md hover:bg-muted"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <>
+              <button
+                onClick={() => onRetry(item.localId)}
+                aria-label="Tentar novamente"
+                className="p-2 rounded-md hover:bg-muted inline-flex items-center gap-1 text-sm"
+                title="Tentar novamente"
+              >
+                <RotateCw className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => onRemove(item.localId)}
+                aria-label="Limpar"
+                className="p-2 rounded-md hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </>
           )}
         </div>
       </div>

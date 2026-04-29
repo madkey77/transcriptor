@@ -90,6 +90,7 @@ function App() {
                 items={queue.items}
                 onOpen={handleViewTranscription}
                 onRemove={queue.remove}
+                onRetry={queue.retry}
               />
             </div>
           )}

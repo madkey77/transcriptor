@@ -19,6 +19,14 @@ def client(monkeypatch):
     from src.transcription import queue as q_mod
     q_mod.reset_queue()
 
+    # Prevent the worker from dequeuing — tests assert on items still in _pending.
+    async def _noop_start_worker(self, handler):
+        return
+    async def _noop_stop_worker(self):
+        return
+    monkeypatch.setattr(q_mod.TranscriptionQueue, "start_worker", _noop_start_worker)
+    monkeypatch.setattr(q_mod.TranscriptionQueue, "stop_worker", _noop_stop_worker)
+
     from src.api.main import app
     with TestClient(app) as c:
         yield c

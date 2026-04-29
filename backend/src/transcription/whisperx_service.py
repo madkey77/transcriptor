@@ -77,7 +77,7 @@ class WhisperXService:
         if self.device == "cuda" and not torch.cuda.is_available():
             raise RuntimeError(
                 "CUDA não disponível. Instale driver NVIDIA + PyTorch CUDA, "
-                "ou ajuste TRANSCRIPTOR_DEVICE no .env."
+                "ou ajuste DEVICE=cpu no backend/.env."
             )
 
         try:

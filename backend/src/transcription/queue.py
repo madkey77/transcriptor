@@ -28,7 +28,6 @@ class TranscriptionQueue:
         self._pending: "OrderedDict[str, bytes]" = OrderedDict()
         self._active_id: Optional[str] = None
         self._worker_task: Optional[asyncio.Task] = None
-        self._lock = asyncio.Lock()
         self._stop = asyncio.Event()
 
     # ---- public API ----
@@ -76,7 +75,7 @@ class TranscriptionQueue:
         if self._worker_task and not self._worker_task.done():
             return
         self._stop.clear()
-        self._worker_task = asyncio.create_task(self._run(handler))
+        self._worker_task = asyncio.create_task(self._run_with_restart(handler))
 
     async def stop_worker(self) -> None:
         self._stop.set()
@@ -91,6 +90,17 @@ class TranscriptionQueue:
 
     # ---- internals ----
 
+    async def _run_with_restart(self, handler: JobHandler) -> None:
+        """Outer loop: restart _run if it dies for any non-cancellation reason."""
+        while not self._stop.is_set():
+            try:
+                await self._run(handler)
+                return  # _run returned normally (sentinel received)
+            except asyncio.CancelledError:
+                raise
+            except BaseException as e:
+                logger.error(f"Worker task crashed unexpectedly: {e}; restarting.")
+
     async def _run(self, handler: JobHandler) -> None:
         while not self._stop.is_set():
             tid, content = await self._queue.get()
@@ -103,6 +113,8 @@ class TranscriptionQueue:
             self._active_id = tid
             try:
                 await handler(tid, content)
+            except asyncio.CancelledError:
+                raise
             except Exception as e:
                 logger.exception(f"Queue handler crashed for {tid}: {e}")
             finally:

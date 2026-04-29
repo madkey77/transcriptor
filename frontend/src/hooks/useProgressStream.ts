@@ -128,8 +128,9 @@ export function useProgressStream(transcriptionId: string | null) {
     }
 
     eventSource.onerror = () => {
+      // Don't close: EventSource auto-reconnects on transient errors.
+      // The connection is closed explicitly on `complete`/`error` payloads above.
       setState(prev => ({ ...prev, isConnected: false }))
-      eventSource.close()
     }
   }, [transcriptionId])
 

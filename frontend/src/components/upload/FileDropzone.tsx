@@ -42,8 +42,10 @@ export function FileDropzone({
       disabled,
     })
 
-  const error =
-    fileRejections.length > 0 ? fileRejections[0].errors[0].message : null
+  const rejectionLines = fileRejections.map((r) => {
+    const reason = r.errors[0]?.message ?? 'Inválido'
+    return `${r.file.name}: ${reason}`
+  })
 
   return (
     <div
@@ -70,7 +72,13 @@ export function FileDropzone({
           </p>
         </div>
       )}
-      {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+      {rejectionLines.length > 0 && (
+        <ul className="mt-4 text-sm text-destructive space-y-1 text-left max-w-md mx-auto">
+          {rejectionLines.map((line, i) => (
+            <li key={i}>{line}</li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
