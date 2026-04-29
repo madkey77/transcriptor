@@ -11,16 +11,18 @@ export interface ProgressState {
   isConnected: boolean
   currentStage: string | null
   stageDescription: string | null
+  progressPct: number | null
   logs: LogEntry[]
   isComplete: boolean
   error: string | null
 }
 
 interface ProgressEvent {
-  event: 'connected' | 'stage' | 'log' | 'complete' | 'error' | 'status'
+  event: 'connected' | 'stage' | 'log' | 'progress' | 'complete' | 'error' | 'status'
   timestamp?: string
   stage?: string
   description?: string
+  pct?: number
   level?: string
   message?: string
   data?: Record<string, unknown>
@@ -31,6 +33,7 @@ export function useProgressStream(transcriptionId: string | null) {
     isConnected: false,
     currentStage: null,
     stageDescription: null,
+    progressPct: null,
     logs: [],
     isComplete: false,
     error: null,
@@ -71,6 +74,13 @@ export function useProgressStream(transcriptionId: string | null) {
                 ...prev,
                 currentStage: data.stage || null,
                 stageDescription: data.description || null,
+              }
+
+            case 'progress':
+              return {
+                ...prev,
+                currentStage: data.stage || prev.currentStage,
+                progressPct: typeof data.pct === 'number' ? data.pct : prev.progressPct,
               }
 
             case 'log':
@@ -138,6 +148,7 @@ export function useProgressStream(transcriptionId: string | null) {
       isConnected: false,
       currentStage: null,
       stageDescription: null,
+      progressPct: null,
       logs: [],
       isComplete: false,
       error: null,
