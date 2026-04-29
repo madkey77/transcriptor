@@ -4,6 +4,7 @@ export interface TranscriptionCreated {
   id: string
   status: string
   filename: string
+  position: number
 }
 
 export type ProcessingStage =
@@ -68,6 +69,13 @@ export interface SpeakerUpdateResponse {
   updated_segments: number
 }
 
+export interface ProgressEventPayload {
+  event: 'progress'
+  stage: ProcessingStage
+  pct: number
+  timestamp?: string
+}
+
 export interface TranscriptionSummary {
   id: string
   filename: string
@@ -93,6 +101,9 @@ export const transcriptionApi = {
 
   updateSpeaker: (id: string, update: SpeakerUpdate) =>
     apiClient.patch<SpeakerUpdateResponse>(`/transcribe/${id}/speakers`, update),
+
+  cancel: (id: string) =>
+    apiClient.delete<void>(`/transcribe/${id}`),
 
   getHistory: (limit = 50, offset = 0) =>
     apiClient.get<TranscriptionList>(`/history?limit=${limit}&offset=${offset}`),

@@ -70,6 +70,27 @@ class ApiClient {
     return this.handleResponse<T>(response)
   }
 
+  async delete<T>(endpoint: string): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    })
+    if (response.status === 401) {
+      handleUnauthorized()
+    }
+    if (!response.ok) {
+      const error: ApiError = await response.json().catch(() => ({
+        error_code: 'network_error',
+        message: 'Network error occurred',
+      }))
+      throw error
+    }
+    if (response.status === 204) {
+      return undefined as T
+    }
+    return response.json()
+  }
+
   async uploadFile<T>(
     endpoint: string,
     file: File,
