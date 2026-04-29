@@ -1,14 +1,23 @@
-import { useHistory } from '@/hooks/useHistory'
-import { Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { useDeleteTranscription, useHistory } from '@/hooks/useHistory'
+import { Clock, CheckCircle, XCircle, Loader2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 
 interface HistoryListProps {
   onSelect: (id: string) => void
   className?: string
 }
 
+interface PendingDelete {
+  id: string
+  filename: string
+}
+
 export function HistoryList({ onSelect, className }: HistoryListProps) {
   const { data, isLoading, error } = useHistory()
+  const deleteMutation = useDeleteTranscription()
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
 
   if (isLoading) {
     return (
@@ -34,32 +43,56 @@ export function HistoryList({ onSelect, className }: HistoryListProps) {
     )
   }
 
+  const canDelete = (status: string) => status === 'completed' || status === 'failed'
+
+  const handleConfirmDelete = () => {
+    if (!pendingDelete) return
+    deleteMutation.mutate(pendingDelete.id, {
+      onSettled: () => setPendingDelete(null),
+    })
+  }
+
   return (
     <div className={cn('space-y-2', className)}>
       {data.items.map((item) => (
-        <button
+        <div
           key={item.id}
-          onClick={() => onSelect(item.id)}
-          className="w-full p-4 text-left rounded-lg border hover:bg-muted/50 transition-colors"
+          className="w-full p-4 rounded-lg border hover:bg-muted/50 transition-colors flex items-center justify-between gap-3"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <StatusIcon status={item.status} />
-              <div>
-                <div className="font-medium">{item.filename}</div>
-                <div className="text-sm text-muted-foreground">
-                  {formatDate(item.created_at)}
-                  {item.speaker_count !== undefined && item.speaker_count !== null && (
-                    <span className="ml-2">
-                      {item.speaker_count} speaker{item.speaker_count !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
+          <button
+            onClick={() => onSelect(item.id)}
+            className="flex items-center gap-3 flex-1 min-w-0 text-left"
+          >
+            <StatusIcon status={item.status} />
+            <div className="min-w-0">
+              <div className="font-medium truncate">{item.filename}</div>
+              <div className="text-sm text-muted-foreground">
+                {formatDate(item.created_at)}
+                {item.speaker_count !== undefined && item.speaker_count !== null && (
+                  <span className="ml-2">
+                    {item.speaker_count} speaker{item.speaker_count !== 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
             </div>
+          </button>
+          <div className="flex items-center gap-2 shrink-0">
             <StatusBadge status={item.status} />
+            {canDelete(item.status) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setPendingDelete({ id: item.id, filename: item.filename })
+                }}
+                aria-label={`Excluir ${item.filename}`}
+                title="Excluir"
+                className="p-2 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
-        </button>
+        </div>
       ))}
 
       {data.total > data.items.length && (
@@ -67,6 +100,22 @@ export function HistoryList({ onSelect, className }: HistoryListProps) {
           Showing {data.items.length} of {data.total} transcriptions
         </div>
       )}
+
+      <ConfirmModal
+        open={pendingDelete !== null}
+        title="Excluir transcrição?"
+        description={
+          pendingDelete
+            ? `"${pendingDelete.filename}" e todos os seus segmentos serão excluídos permanentemente. Essa ação não pode ser desfeita.`
+            : ''
+        }
+        confirmLabel="Excluir"
+        cancelLabel="Cancelar"
+        destructive
+        loading={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }

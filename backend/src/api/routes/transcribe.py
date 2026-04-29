@@ -304,11 +304,16 @@ async def download_transcription(
 
 
 @router.delete("/{transcription_id}", status_code=204)
-async def cancel_transcription(
+async def remove_transcription(
     transcription_id: str,
     db: Session = Depends(get_db)
 ):
-    """Cancel a pending transcription. 409 if already processing/finished."""
+    """Remove a transcription.
+
+    - pending: cancel the queued job and mark FAILED (kept in history).
+    - completed/failed: permanently delete the row and its segments.
+    - processing: 409 (cannot remove a running job).
+    """
     from src.transcription.queue import get_queue
 
     repo = TranscriptionRepository(db)
@@ -316,20 +321,24 @@ async def cancel_transcription(
     if status is None:
         raise HTTPException(status_code=404, detail="Not found")
 
-    if status["status"] != "pending":
-        raise HTTPException(status_code=409, detail="Job is not cancellable")
-
     queue = get_queue()
-    if queue.is_active(transcription_id):
-        raise HTTPException(status_code=409, detail="Job is active")
-    if not queue.cancel(transcription_id):
-        # Job already left the pending list — worker picked it up between the
-        # DB read and here. Don't mark FAILED; the running job will finish.
-        raise HTTPException(status_code=409, detail="Job is no longer cancellable")
+    s = status["status"]
 
-    repo.update_status(
-        transcription_id,
-        TranscriptionStatus.FAILED,
-        error_message="Cancelled by user"
-    )
+    if s == "processing" or queue.is_active(transcription_id):
+        raise HTTPException(status_code=409, detail="Cannot remove a running transcription")
+
+    if s == "pending":
+        if not queue.cancel(transcription_id):
+            # Worker picked up the job between the DB read and here.
+            raise HTTPException(status_code=409, detail="Job is no longer cancellable")
+        repo.update_status(
+            transcription_id,
+            TranscriptionStatus.FAILED,
+            error_message="Cancelled by user"
+        )
+        return Response(status_code=204)
+
+    # completed or failed → delete permanently
+    if not repo.delete_transcription(transcription_id):
+        raise HTTPException(status_code=404, detail="Not found")
     return Response(status_code=204)

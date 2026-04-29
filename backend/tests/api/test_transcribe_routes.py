@@ -96,3 +96,42 @@ def test_delete_active_returns_409(client, monkeypatch):
 
     r = client.delete(f"/api/transcribe/{tid}")
     assert r.status_code == 409
+
+
+def test_delete_completed_removes_from_db(client):
+    from src.storage.database import get_db_context
+    from src.storage.repository import TranscriptionRepository
+    from src.storage.models import TranscriptionStatus
+
+    with get_db_context() as db:
+        repo = TranscriptionRepository(db)
+        t = repo.create_transcription("done.mp3", 100)
+        repo.update_status(t.id, TranscriptionStatus.COMPLETED)
+        tid = t.id
+
+    r = client.delete(f"/api/transcribe/{tid}")
+    assert r.status_code == 204
+
+    # Verify the row is gone
+    with get_db_context() as db:
+        repo = TranscriptionRepository(db)
+        assert repo.get_transcription_status(tid) is None
+
+
+def test_delete_failed_removes_from_db(client):
+    from src.storage.database import get_db_context
+    from src.storage.repository import TranscriptionRepository
+    from src.storage.models import TranscriptionStatus
+
+    with get_db_context() as db:
+        repo = TranscriptionRepository(db)
+        t = repo.create_transcription("oops.mp3", 100)
+        repo.update_status(t.id, TranscriptionStatus.FAILED, error_message="boom")
+        tid = t.id
+
+    r = client.delete(f"/api/transcribe/{tid}")
+    assert r.status_code == 204
+
+    with get_db_context() as db:
+        repo = TranscriptionRepository(db)
+        assert repo.get_transcription_status(tid) is None
