@@ -1,6 +1,7 @@
 import os
 import logging
-from typing import Optional
+import contextvars
+from typing import Callable, Optional
 from pathlib import Path
 
 import torch
@@ -8,6 +9,49 @@ import torch
 from src.utils.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Holds the tqdm class to use during a transcribe() call. Read by code paths
+# that need to pick up our subclass (e.g. tests verifying the patch works).
+_patched_tqdm_class: contextvars.ContextVar = contextvars.ContextVar(
+    "_patched_tqdm_class", default=None
+)
+
+
+def _make_progress_tqdm(on_progress: Callable[[float], None]):
+    """Build a tqdm subclass that forwards 0..1 progress to on_progress.
+
+    tqdm's __iter__ avoids calling self.update() on every step for speed, so
+    we override __iter__ to report progress after each yielded item ourselves.
+    The update() override handles any explicit .update() calls (e.g. manual
+    progress bars or older tqdm versions).
+    """
+    import tqdm as _tqdm_mod
+
+    class ProgressTqdm(_tqdm_mod.tqdm):
+        def __iter__(self):
+            total = self.total or 0
+            n = 0
+            for x in super().__iter__():
+                yield x
+                # self.n is updated by super().__iter__'s finally block only at
+                # the very end, so we track our own counter.
+                n += 1
+                try:
+                    if total > 0:
+                        on_progress(n / total)
+                except Exception:
+                    pass  # never let progress reporting break transcription
+
+        def update(self, n=1):
+            super().update(n)
+            try:
+                total = self.total or 0
+                if total > 0:
+                    on_progress(self.n / total)
+            except Exception:
+                pass  # never let progress reporting break transcription
+
+    return ProgressTqdm
 
 # Global model instances (loaded once)
 _whisper_model = None
@@ -67,12 +111,18 @@ class WhisperXService:
         """Check if model is loaded."""
         return _whisper_model is not None
 
-    def transcribe(self, audio_path: str) -> dict:
+    def transcribe(
+        self,
+        audio_path: str,
+        on_progress: Optional[Callable[[float], None]] = None,
+    ) -> dict:
         """
         Transcribe audio file using WhisperX.
 
         Args:
             audio_path: Path to audio file
+            on_progress: Optional callback receiving fractional progress (0..1)
+                during the transcription pass.
 
         Returns:
             Dict with 'segments' containing transcribed segments with word-level timestamps
@@ -89,16 +139,44 @@ class WhisperXService:
         import whisperx
 
         logger.info(f"Transcribing: {audio_path}")
-
-        # Load audio
         audio = whisperx.load_audio(audio_path)
 
-        # Transcribe with batched processing
-        result = _whisper_model.transcribe(
-            audio,
-            batch_size=8,
-            language=self.settings.whisper_language
-        )
+        # Patch tqdm in the modules WhisperX/faster-whisper iterate over.
+        token = None
+        patched_modules: list = []
+        if on_progress is not None:
+            try:
+                ProgressTqdm = _make_progress_tqdm(on_progress)
+                token = _patched_tqdm_class.set(ProgressTqdm)
+                # WhisperX (>=3.x) uses tqdm imported in whisperx.asr; faster-whisper
+                # also uses tqdm in faster_whisper.transcribe. Patch both if present.
+                for mod_name in ("whisperx.asr", "faster_whisper.transcribe"):
+                    try:
+                        mod = __import__(mod_name, fromlist=["tqdm"])
+                    except Exception:
+                        continue
+                    if hasattr(mod, "tqdm"):
+                        patched_modules.append((mod, mod.tqdm))
+                        mod.tqdm = ProgressTqdm
+                if not patched_modules:
+                    logger.warning(
+                        "Could not patch tqdm in whisperx/faster_whisper; "
+                        "progress callback will not fire."
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to install tqdm progress patch: {e}")
+
+        try:
+            result = _whisper_model.transcribe(
+                audio,
+                batch_size=8,
+                language=self.settings.whisper_language
+            )
+        finally:
+            for mod, original in patched_modules:
+                mod.tqdm = original
+            if token is not None:
+                _patched_tqdm_class.reset(token)
 
         # Align for word-level timestamps
         result = whisperx.align(
