@@ -169,7 +169,7 @@ class WhisperXService:
         try:
             result = _whisper_model.transcribe(
                 audio,
-                batch_size=8,
+                batch_size=self.settings.batch_size,
                 language=self.settings.whisper_language
             )
         finally:
