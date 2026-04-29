@@ -26,26 +26,50 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Transcriptor API...")
     create_tables()
 
-    # Load models (optional - can be loaded lazily on first request)
+    # Mark any orphan jobs (left as pending/processing from a previous run) as failed.
+    from src.storage.database import get_db_context
+    from src.storage.repository import TranscriptionRepository
+    from src.storage.models import Transcription, TranscriptionStatus
+    with get_db_context() as db:
+        orphans = (
+            db.query(Transcription)
+            .filter(Transcription.status.in_([
+                TranscriptionStatus.PENDING,
+                TranscriptionStatus.PROCESSING,
+            ]))
+            .all()
+        )
+        for o in orphans:
+            o.status = TranscriptionStatus.FAILED
+            o.error_message = "Interrupted by restart"
+        if orphans:
+            db.commit()
+            logger.info(f"Marked {len(orphans)} orphan jobs as failed")
+
+    # Load models — fail fast if CUDA isn't there.
     whisperx = get_whisperx_service()
     diarization = get_diarization_service()
-
-    try:
-        whisperx.load_model()
-        logger.info("WhisperX model loaded")
-    except Exception as e:
-        logger.warning(f"WhisperX model not loaded on startup: {e}")
-
+    whisperx.load_model()
+    logger.info("WhisperX model loaded")
     try:
         diarization.load_pipeline()
         logger.info("Diarization pipeline loaded")
     except Exception as e:
-        logger.warning(f"Diarization pipeline not loaded on startup: {e}")
+        logger.warning(f"Diarization not available: {e}")
+
+    # Start the transcription queue worker.
+    from src.transcription.queue import get_queue
+    from src.transcription.queue_handler import queue_job_handler
+    queue = get_queue()
+    await queue.start_worker(queue_job_handler)
+    logger.info("Transcription queue worker started")
 
     logger.info("Transcriptor API started")
     yield
     # Shutdown
     logger.info("Shutting down Transcriptor API...")
+    await queue.stop_worker()
+    logger.info("Queue worker stopped")
 
 
 app = FastAPI(
