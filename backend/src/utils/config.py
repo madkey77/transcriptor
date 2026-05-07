@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     queue_max_size: int = 100
 
     # File upload limits
-    max_file_size_mb: int = 1024
+    max_file_size_mb: int = 2048
 
     # Allowed audio formats
     allowed_audio_formats: set[str] = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}

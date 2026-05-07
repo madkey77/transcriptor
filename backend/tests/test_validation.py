@@ -47,18 +47,18 @@ class TestFileValidation:
         assert exc_info.value.error_code == ValidationErrorCode.INVALID_FILE_FORMAT
 
     def test_file_too_large_rejected(self):
-        """Files exceeding 250MB should be rejected."""
-        file_size = 300 * 1024 * 1024  # 300MB
+        """Files exceeding 2GB should be rejected."""
+        file_size = 2100 * 1024 * 1024  # 2100MB
 
         with pytest.raises(FileValidationError) as exc_info:
             validate_audio_file("large_file.mp3", file_size)
 
         assert exc_info.value.error_code == ValidationErrorCode.FILE_TOO_LARGE
-        assert "250MB limit" in exc_info.value.message
+        assert "2048MB limit" in exc_info.value.message
 
     def test_file_at_limit_accepted(self):
-        """Files exactly at 250MB should be accepted."""
-        file_size = 250 * 1024 * 1024  # Exactly 250MB
+        """Files exactly at 2GB should be accepted."""
+        file_size = 2048 * 1024 * 1024  # Exactly 2GB
         validate_audio_file("max_file.mp3", file_size)
 
     def test_empty_file_rejected(self):

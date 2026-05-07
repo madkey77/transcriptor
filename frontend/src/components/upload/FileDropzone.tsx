@@ -11,7 +11,7 @@ const ACCEPTED_FORMATS = {
   'audio/flac': ['.flac'],
 }
 
-const MAX_FILE_SIZE = 1024 * 1024 * 1024 // 1GB
+const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024 // 2GB
 
 interface FileDropzoneProps {
   onFilesSelect: (files: File[]) => void
