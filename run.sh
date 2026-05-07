@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot launcher: starts the Transcriptor backend + ngrok tunnel.
+# One-shot launcher: starts the Transcriptor backend + Cloudflare Tunnel.
 # Press Ctrl+C once to shut everything down cleanly.
 
 set -euo pipefail
@@ -9,20 +9,22 @@ BACKEND="$ROOT/backend"
 LOG_DIR="$ROOT/.runtime"
 mkdir -p "$LOG_DIR"
 BACKEND_LOG="$LOG_DIR/backend.log"
-NGROK_LOG="$LOG_DIR/ngrok.log"
+TUNNEL_LOG="$LOG_DIR/tunnel.log"
 
 cleanup() {
   echo
   echo "Shutting down…"
   [ -n "${BACKEND_PID:-}" ] && kill "$BACKEND_PID" 2>/dev/null || true
-  [ -n "${NGROK_PID:-}"   ] && kill "$NGROK_PID"   2>/dev/null || true
+  [ -n "${TUNNEL_PID:-}"  ] && kill "$TUNNEL_PID"  2>/dev/null || true
   wait 2>/dev/null || true
   echo "Done."
 }
 trap cleanup EXIT INT TERM
 
-command -v ngrok >/dev/null 2>&1 || {
-  echo "ERROR: ngrok não está instalado. Veja README → 'Exposing the service via ngrok'." >&2
+CLOUDFLARED="${CLOUDFLARED:-cloudflared}"
+command -v "$CLOUDFLARED" >/dev/null 2>&1 || {
+  echo "ERROR: cloudflared não encontrado no PATH. Instale com:" >&2
+  echo "  curl -L -o ~/.local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 && chmod +x ~/.local/bin/cloudflared" >&2
   exit 1
 }
 
@@ -47,25 +49,22 @@ curl -s -o /dev/null http://127.0.0.1:8000/ || {
 }
 echo "  ✓ backend pronto em http://127.0.0.1:8000"
 
-echo "▶ Abrindo túnel ngrok (logs → $NGROK_LOG)…"
-NGROK_DOMAIN="${NGROK_DOMAIN:-egret-awake-vaguely.ngrok-free.app}"
-ngrok http --domain="$NGROK_DOMAIN" 8000 --log=stdout >"$NGROK_LOG" 2>&1 &
-NGROK_PID=$!
+echo "▶ Abrindo Cloudflare Quick Tunnel (logs → $TUNNEL_LOG)…"
+: > "$TUNNEL_LOG"
+"$CLOUDFLARED" tunnel --no-autoupdate --url http://localhost:8000 >"$TUNNEL_LOG" 2>&1 &
+TUNNEL_PID=$!
 
-# ngrok exposes its local API on :4040 once ready
+# cloudflared imprime a URL no formato https://xxxx.trycloudflare.com
 PUBLIC_URL=""
-for _ in $(seq 1 30); do
-  PUBLIC_URL=$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null \
-    | grep -oE 'https://[a-zA-Z0-9.-]+\.ngrok[a-zA-Z0-9.-]*' \
-    | head -1) || true
+for _ in $(seq 1 60); do
+  PUBLIC_URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$TUNNEL_LOG" | head -1) || true
   [ -n "$PUBLIC_URL" ] && break
   sleep 1
 done
 
 if [ -z "$PUBLIC_URL" ]; then
-  echo "ERROR: ngrok não retornou URL. Confira:" >&2
-  echo "  - 'ngrok config add-authtoken <token>' já foi rodado" >&2
-  echo "  - últimas linhas: $(tail -5 "$NGROK_LOG")" >&2
+  echo "ERROR: cloudflared não retornou URL. Últimas linhas:" >&2
+  tail -20 "$TUNNEL_LOG" >&2
   exit 1
 fi
 
@@ -75,11 +74,11 @@ cat <<BANNER
   Transcriptor está no ar:
     $PUBLIC_URL
   Cole sua TRANSCRIPTOR_API_KEY na tela ao abrir.
-  Painel ngrok local:  http://127.0.0.1:4040
+  URL muda a cada restart (Quick Tunnel).
   Ctrl+C para encerrar tudo.
 ============================================================
 
 BANNER
 
 # Block until either process dies (then trap cleans up)
-wait -n "$BACKEND_PID" "$NGROK_PID"
+wait -n "$BACKEND_PID" "$TUNNEL_PID"
