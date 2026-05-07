@@ -51,8 +51,14 @@ async def lifespan(app: FastAPI):
     whisperx.load_model()
     logger.info("WhisperX model loaded")
     try:
-        diarization.load_pipeline()
-        logger.info("Diarization pipeline loaded")
+        if diarization.load_pipeline():
+            logger.info("Diarization pipeline loaded")
+        else:
+            logger.warning(
+                "Diarization pipeline not loaded — transcriptions will fall "
+                "back to a single speaker. Check HUGGINGFACE_TOKEN and earlier "
+                "errors in this log."
+            )
     except Exception as e:
         logger.warning(f"Diarization not available: {e}")
 

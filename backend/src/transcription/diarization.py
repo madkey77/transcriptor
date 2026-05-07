@@ -36,13 +36,21 @@ class DiarizationService:
         try:
             logger.info("Loading speaker diarization pipeline")
 
-            # Try whisperx.diarize module first (newer versions)
+            # Try whisperx.diarize module (the constructor's auth-token kwarg
+            # has been renamed across versions: `token` in current whisperx,
+            # `use_auth_token` in older releases).
             try:
                 from whisperx.diarize import DiarizationPipeline
-                _diarize_pipeline = DiarizationPipeline(
-                    use_auth_token=self.settings.huggingface_token,
-                    device=self.device
-                )
+                try:
+                    _diarize_pipeline = DiarizationPipeline(
+                        token=self.settings.huggingface_token,
+                        device=self.device,
+                    )
+                except TypeError:
+                    _diarize_pipeline = DiarizationPipeline(
+                        use_auth_token=self.settings.huggingface_token,
+                        device=self.device,
+                    )
                 logger.info("Diarization pipeline loaded via whisperx.diarize")
                 return True
             except (ImportError, AttributeError):
@@ -52,10 +60,16 @@ class DiarizationService:
             try:
                 import whisperx
                 if hasattr(whisperx, 'DiarizationPipeline'):
-                    _diarize_pipeline = whisperx.DiarizationPipeline(
-                        use_auth_token=self.settings.huggingface_token,
-                        device=self.device
-                    )
+                    try:
+                        _diarize_pipeline = whisperx.DiarizationPipeline(
+                            token=self.settings.huggingface_token,
+                            device=self.device,
+                        )
+                    except TypeError:
+                        _diarize_pipeline = whisperx.DiarizationPipeline(
+                            use_auth_token=self.settings.huggingface_token,
+                            device=self.device,
+                        )
                     logger.info("Diarization pipeline loaded via whisperx")
                     return True
             except (ImportError, AttributeError):
