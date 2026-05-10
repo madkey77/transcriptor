@@ -37,7 +37,7 @@ class AudioProcessor:
         for logger_name in ['src.transcription.processor', 'src.transcription.whisperx_service']:
             logging.getLogger(logger_name).removeHandler(self._log_handler)
 
-    def process(self, audio_content: bytes, transcription_id: str) -> bool:
+    def process(self, audio_content: bytes, transcription_id: str, *, diarize: bool = True) -> bool:
         """
         Process audio file through transcription pipeline.
 
@@ -77,7 +77,7 @@ class AudioProcessor:
                 result = self.whisperx.transcribe(temp_path, on_progress=_on_progress)
 
                 # Stage: Diarizing
-                if self.diarization.is_available():
+                if diarize and self.diarization.is_available():
                     self.progress.update_stage(transcription_id, "diarizing", "Identifying speakers...")
                     repo.update_stage(transcription_id, ProcessingStage.DIARIZING)
 

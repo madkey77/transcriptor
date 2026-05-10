@@ -92,3 +92,26 @@ def test_transcribe_failure_exits_one(fake_audio: Path, cli_runner):
 def test_transcribe_missing_file_exit_2(cli_runner, tmp_path: Path):
     result = cli_runner.invoke(app, ["transcribe", str(tmp_path / "ghost.mp3")])
     assert result.exit_code == 2
+
+
+def test_no_diarize_flag_propagates_to_processor(fake_audio: Path, tmp_path: Path, cli_runner):
+    fake_processor = MagicMock()
+    fake_processor.process.return_value = True
+
+    fake_repo = MagicMock()
+    fake_repo.create_transcription.return_value = MagicMock(id="T9")
+    fake_repo.get_transcription.return_value = _fake_transcription()
+
+    with patch("src.cli.commands.transcribe._get_audio_processor", return_value=fake_processor), \
+         patch("src.cli.commands.transcribe._open_repo") as mock_open_repo:
+        mock_open_repo.return_value.__enter__.return_value = fake_repo
+        cli_runner.invoke(app, [
+            "transcribe", str(fake_audio),
+            "--output-dir", str(tmp_path / "out"),
+            "--no-diarize",
+        ])
+
+    # Verify processor.process was called with diarize=False
+    fake_processor.process.assert_called_once()
+    _args, kwargs = fake_processor.process.call_args
+    assert kwargs.get("diarize") is False

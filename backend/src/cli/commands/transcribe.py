@@ -82,7 +82,7 @@ def run(
             record = repo.create_transcription(audio.name, file_size)
             transcription_id = record.id
 
-        ok = processor.process(audio_bytes, transcription_id)
+        ok = processor.process(audio_bytes, transcription_id, diarize=diarize)
 
         with _open_repo() as repo:
             transcription = repo.get_transcription(transcription_id)
