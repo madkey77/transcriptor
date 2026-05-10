@@ -45,10 +45,9 @@ def _root(
 #   app.add_typer(jobs.app, name="jobs")
 
 
-@app.command(name="transcribe", help="Transcreve arquivos localmente (precisa de [full]).")
-def _transcribe_placeholder() -> None:
-    typer.secho("Comando 'transcribe' ainda não implementado.", err=True, fg=typer.colors.RED)
-    raise typer.Exit(code=1)
+from src.cli.commands import transcribe as _transcribe_module
+
+app.command(name="transcribe", help="Transcreve arquivos localmente (precisa de [full]).")(_transcribe_module.run)
 
 
 from src.cli.commands import submit as _submit_module
