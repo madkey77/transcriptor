@@ -51,10 +51,9 @@ def _transcribe_placeholder() -> None:
     raise typer.Exit(code=1)
 
 
-@app.command(name="submit", help="Envia arquivos para o backend HTTP.")
-def _submit_placeholder() -> None:
-    typer.secho("Comando 'submit' ainda não implementado.", err=True, fg=typer.colors.RED)
-    raise typer.Exit(code=1)
+from src.cli.commands import submit as _submit_module
+
+app.command(name="submit", help="Envia arquivos pro backend HTTP e (opcional) baixa resultado.")(_submit_module.run)
 
 
 jobs_app = typer.Typer(help="Lista, consulta e remove transcrições no servidor.")
