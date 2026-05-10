@@ -10,6 +10,7 @@ Auto-generated from all feature plans. Last updated: 2026-01-14
 
 ```text
 src/
+src/cli/   # CLI Typer (transcribe local + cliente HTTP submit/jobs)
 tests/
 ```
 

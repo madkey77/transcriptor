@@ -93,3 +93,46 @@ backend/
 ├── requirements.txt
 └── .env.example
 ```
+
+## CLI
+
+A CLI `transcriptor` expõe transcrição standalone (WhisperX local) e cliente HTTP do backend.
+
+### Instalação
+
+No PC com GPU (modo completo):
+```bash
+pip install -e ./backend[full]
+```
+
+Em outras máquinas (apenas cliente HTTP):
+```bash
+pip install -e ./backend[client]
+```
+
+### Comandos principais
+
+```bash
+# Standalone (precisa de [full])
+transcriptor transcribe ./audio.mp3 --output-dir ./out --formats srt,txt,json
+
+# Cliente HTTP
+transcriptor submit ./audio.mp3 --server http://gpu-pc.lan:8000 --api-key $KEY
+
+# Histórico
+transcriptor jobs list   --server $URL --api-key $KEY
+transcriptor jobs get    JOB_ID --download --formats srt --output-dir ./out
+transcriptor jobs delete JOB_ID --yes
+```
+
+Configuração opcional em `~/.config/transcriptor/cli.toml`:
+```toml
+[default]
+server = "http://gpu-pc.lan:8000"
+api_key = "..."
+
+[profiles.lan]
+server = "http://192.168.1.10:8000"
+```
+
+Use `transcriptor --profile lan submit ...` para selecionar perfil.

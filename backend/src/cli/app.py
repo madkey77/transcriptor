@@ -1,3 +1,5 @@
+import logging
+import sys
 from importlib.metadata import PackageNotFoundError, version
 from typing import Optional
 
@@ -24,6 +26,17 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit(code=0)
 
 
+def _configure_logging(quiet: bool, verbose: bool) -> None:
+    if quiet and verbose:
+        raise typer.BadParameter("--quiet and --verbose are mutually exclusive")
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG, stream=sys.stderr, format="%(levelname)s %(name)s: %(message)s")
+    elif quiet:
+        logging.basicConfig(level=logging.ERROR, stream=sys.stderr)
+    else:
+        logging.basicConfig(level=logging.INFO, stream=sys.stderr)
+
+
 @app.callback()
 def _root(
     version: Optional[bool] = typer.Option(
@@ -33,9 +46,11 @@ def _root(
         is_eager=True,
         help="Imprime a versão e sai.",
     ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suprime mensagens humanas."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Logs detalhados em stderr."),
 ) -> None:
     """Root callback — registra opções globais."""
-    return None
+    _configure_logging(quiet, verbose)
 
 
 # Subcomandos serão registrados em tasks seguintes:
