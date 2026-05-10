@@ -32,3 +32,43 @@ def test_jobs_list_passes_limit_offset(cli_runner):
     cli_runner.invoke(app, ["jobs", "list", "--server", "http://srv", "--limit", "5", "--offset", "10"])
     assert route.calls.last.request.url.params["limit"] == "5"
     assert route.calls.last.request.url.params["offset"] == "10"
+
+
+@respx.mock
+def test_jobs_get_returns_detail(cli_runner):
+    respx.get("http://srv/api/transcribe/j1").mock(
+        return_value=httpx.Response(200, json={
+            "id": "j1", "filename": "a.mp3", "file_size": 100, "upload_timestamp": "x",
+            "status": "completed", "error_message": None,
+            "created_at": "x", "updated_at": "x",
+            "segments": [], "speakers": [],
+        })
+    )
+    result = cli_runner.invoke(app, ["jobs", "get", "j1", "--server", "http://srv"])
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(result.stdout.strip())
+    assert payload["id"] == "j1"
+
+
+@respx.mock
+def test_jobs_get_with_download_writes_files(cli_runner, tmp_path):
+    respx.get("http://srv/api/transcribe/j1").mock(
+        return_value=httpx.Response(200, json={
+            "id": "j1", "filename": "a.mp3", "file_size": 100, "upload_timestamp": "x",
+            "status": "completed", "error_message": None,
+            "created_at": "x", "updated_at": "x",
+            "segments": [], "speakers": [],
+        })
+    )
+    respx.get("http://srv/api/transcribe/j1/download").mock(
+        return_value=httpx.Response(200, text="SRT")
+    )
+    result = cli_runner.invoke(app, [
+        "jobs", "get", "j1",
+        "--server", "http://srv",
+        "--download",
+        "--formats", "srt",
+        "--output-dir", str(tmp_path / "out"),
+    ])
+    assert result.exit_code == 0, result.stderr
+    assert (tmp_path / "out" / "a.srt").read_text() == "SRT"
