@@ -72,3 +72,22 @@ def test_jobs_get_with_download_writes_files(cli_runner, tmp_path):
     ])
     assert result.exit_code == 0, result.stderr
     assert (tmp_path / "out" / "a.srt").read_text() == "SRT"
+
+
+@respx.mock
+def test_jobs_delete_with_yes_calls_delete(cli_runner):
+    route = respx.delete("http://srv/api/transcribe/j1").mock(
+        return_value=httpx.Response(204)
+    )
+    result = cli_runner.invoke(app, ["jobs", "delete", "j1", "--server", "http://srv", "--yes"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+
+
+def test_jobs_delete_without_yes_aborts(cli_runner):
+    result = cli_runner.invoke(
+        app,
+        ["jobs", "delete", "j1", "--server", "http://srv"],
+        input="n\n",
+    )
+    assert result.exit_code != 0

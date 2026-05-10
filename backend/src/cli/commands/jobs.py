@@ -66,6 +66,28 @@ def get_job(
     raise typer.Exit(code=EXIT_OK)
 
 
+@app.command("delete")
+def delete_job(
+    job_id: str = typer.Argument(...),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Pula confirmação."),
+    server: Optional[str] = typer.Option(None, "--server", envvar="TRANSCRIPTOR_SERVER"),
+    api_key: Optional[str] = typer.Option(None, "--api-key", envvar="TRANSCRIPTOR_API_KEY"),
+    config: Optional[Path] = typer.Option(None, "--config", envvar="TRANSCRIPTOR_CONFIG"),
+    profile: Optional[str] = typer.Option(None, "--profile"),
+) -> None:
+    if not yes:
+        confirm = typer.confirm(f"Excluir transcrição {job_id}?", default=False)
+        if not confirm:
+            typer.secho("aborted", err=True, fg=typer.colors.YELLOW)
+            raise typer.Exit(code=EXIT_USAGE)
+
+    with _build_client(server, api_key, config, profile) as client:
+        _handle_errors(client.delete_job, job_id)
+
+    sys.stdout.write(json.dumps({"id": job_id, "deleted": True}) + "\n")
+    raise typer.Exit(code=EXIT_OK)
+
+
 @app.command("list")
 def list_jobs(
     limit: int = typer.Option(50, "--limit", min=1, max=100),
