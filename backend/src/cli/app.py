@@ -56,11 +56,6 @@ from src.cli.commands import submit as _submit_module
 app.command(name="submit", help="Envia arquivos pro backend HTTP e (opcional) baixa resultado.")(_submit_module.run)
 
 
-jobs_app = typer.Typer(help="Lista, consulta e remove transcrições no servidor.")
-app.add_typer(jobs_app, name="jobs")
+from src.cli.commands import jobs as _jobs_module
 
-
-@jobs_app.command(name="list")
-def _jobs_list_placeholder() -> None:
-    typer.secho("Comando 'jobs list' ainda não implementado.", err=True, fg=typer.colors.RED)
-    raise typer.Exit(code=1)
+app.add_typer(_jobs_module.app, name="jobs")
